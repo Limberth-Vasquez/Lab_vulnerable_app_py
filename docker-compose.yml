@@ -1,0 +1,32 @@
+version: '3.9'
+
+services:
+
+  db:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: sqlserver-vuln
+    environment:
+      ACCEPT_EULA: "Y"
+      SA_PASSWORD: "PasswordSegura123!"
+    ports:
+      - "1433:1433"
+
+  db-init:
+    image: mcr.microsoft.com/mssql-tools
+    depends_on:
+      - db
+    volumes:
+      - ./init.sql:/init.sql
+    entrypoint: >
+      /bin/bash -c "
+      sleep 25;
+      /opt/mssql-tools/bin/sqlcmd -S db -U sa -P 'PasswordSegura123!' -i /init.sql
+      "
+
+  web:
+    build: .
+    container_name: flask-vuln
+    ports:
+      - "5001:5001"
+    depends_on:
+      - db
