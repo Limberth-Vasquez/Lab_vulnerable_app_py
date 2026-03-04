@@ -1,171 +1,241 @@
-# Laboratorio: Aplicación Vulnerable a SQL Injection con Docker Compose
+# Lab: Aplicación Web Vulnerable a SQL Injection y Versión 2.0 Segura
 
-## 📌 Descripción
+## 1. Descripción General
 
-Este proyecto implementa una aplicación web vulnerable a **SQL Injection** desarrollada en Flask y conectada a una base de datos Microsoft SQL Server.
+Este laboratorio consiste en el desarrollo de:
 
-La aplicación y la base de datos se ejecutan en contenedores separados utilizando **Docker Compose**, cumpliendo con el requisito de contenerización y orquestación.
+1. Una aplicación web vulnerable a SQL Injection.
+2. Una versión 2.0 donde la vulnerabilidad es mitigada mediante buenas prácticas de desarrollo seguro.
+3. Contenerización utilizando Docker Compose.
+4. Explotación de la versión vulnerable con sqlmap para realizar un dump completo de la base de datos.
 
-El objetivo del laboratorio es demostrar:
+Ambas aplicaciones utilizan:
 
-- Separación de servicios en contenedores
-- Comunicación interna entre contenedores
-- Automatización de despliegue
-- Ejecución reproducible
-- Explotación de vulnerabilidad SQL Injection
-
----
-
-## 🏗 Arquitectura
-
-El entorno se compone de:
-
-- 🐍 Contenedor 1: Aplicación Flask (Puerto 5001)
-- 🗄 Contenedor 2: SQL Server 2022 (Puerto 1433)
-- 🛠 Contenedor auxiliar: Inicialización automática de base de datos
-
-┌─────────────────────┐
-│ Flask App │
-│ Puerto 5001 │
-└─────────┬───────────┘
-│
-│ Red interna Docker
-│
-┌─────────▼───────────┐
-│ SQL Server │
-│ Puerto 1433 │
-└─────────────────────┘
-
+* Python (Flask)
+* Microsoft SQL Server
+* Docker y Docker Compose
 
 ---
 
-## 📂 Estructura del Proyecto
+# PARTE I — Aplicación Vulnerable
 
-vulnerable-docker-lab/
-│
-├── app.py
-├── Dockerfile
-├── docker-compose.yml
-├── init.sql
-└── README.md
+## 2. Arquitectura
 
+Usuario → Aplicación Flask → SQL Server
 
----
+La aplicación vulnerable construye consultas SQL concatenando directamente los parámetros enviados por el usuario.
 
-## ⚙️ Requisitos
+Ejemplo conceptual inseguro:
 
-- Docker
-- Docker Compose (v2 o superior)
+```
+query = f"SELECT * FROM users WHERE username = '{username}' AND password = '{password}'"
+```
 
-Verificar instalación:
-
-docker --version
-docker compose version
-
+Esta práctica permite la inyección de código SQL.
 
 ---
 
-## 🚀 Ejecución del Proyecto
+## 3. Inicialización de la Base de Datos (init.sql)
 
-1. Clonar el repositorio:
+El archivo `init.sql` contiene:
 
-git clone <URL_DEL_REPOSITORIO>
-cd vulnerable-docker-lab
+* Creación de la base de datos
+* Creación de la tabla `users`
+* Inserción de datos iniciales
 
+En esta versión se utiliza un servicio adicional `db-init` en el `docker-compose.yml` que:
 
-2. Construir y levantar los contenedores:
+1. Espera a que SQL Server esté disponible.
+2. Ejecuta el script `init.sql` mediante `sqlcmd`.
 
-docker compose up --build
+Si se desea reinicializar completamente la base:
 
-
-El sistema realizará automáticamente:
-
-- Descarga de SQL Server
-- Construcción de imagen Flask
-- Creación de red interna
-- Inicialización automática de la base de datos
-- Inserción de datos de prueba
-
----
-
-## 🌐 Acceso a la Aplicación
-
-Abrir en el navegador:
-
-http://localhost:5001
-
-
----
-
-## 🔎 Pruebas Normales
-
-Consultar usuario válido:
-
-http://localhost:5001/login?username=admin
-
-
-Resultado esperado:
-
-[(1, 'admin', 'admin123')]
-
-
-
----
-
-## 🔥 Prueba de SQL Injection
-
-Ejecutar:
-
-http://localhost:5001/login?username=
-' OR 1=1--
-
-
-Resultado esperado:
-
-Se devuelven todos los registros de la tabla `users`.
-
-Esto demuestra la vulnerabilidad por concatenación directa de parámetros en la consulta SQL.
-
----
-
-## 🗄 Base de Datos
-
-La base de datos se crea automáticamente mediante el archivo `init.sql`, el cual ejecuta:
-
-- Creación de base `vulnerable_db`
-- Creación de tabla `users`
-- Inserción de registros de prueba
-
----
-
-## 🛑 Detener el Entorno
-
-Para detener los contenedores:
-
-docker compose down
-
-
-Para eliminar volúmenes y reiniciar completamente:
-
+```
 docker compose down -v
+```
 
-
----
-
-## 🎓 Objetivos Académicos Cumplidos
-
-- Contenerización de aplicación web
-- Contenerización de base de datos
-- Orquestación con Docker Compose
-- Automatización de despliegue
-- Comunicación entre servicios por red Docker
-- Demostración práctica de SQL Injection
+El parámetro `-v` elimina los volúmenes y fuerza la recreación de la base de datos.
 
 ---
 
-## ⚠️ Advertencia
+## 4. Cómo levantar la aplicación vulnerable
 
-Este proyecto tiene fines exclusivamente educativos.
-La vulnerabilidad implementada es intencional para fines de demostración académica.
+Desde la raíz del proyecto:
 
-No debe utilizarse en entornos productivos.
+```
+docker compose up --build
+```
+
+Esto realiza:
+
+1. Construcción de la imagen de la aplicación Flask.
+2. Levantamiento del contenedor SQL Server (`db`).
+3. Ejecución del script `init.sql` mediante `db-init`.
+4. Conexión de la aplicación con la base de datos.
+
+La aplicación quedará disponible en:
+
+```
+http://localhost:5001
+```
+
+---
+
+## 5. Pruebas manuales
+
+### Login válido
+
+```
+http://localhost:5001/login?username=admin&password=admin123
+```
+
+### SQL Injection manual
+
+```
+http://localhost:5001/login?username=' OR 1=1--&password=anything
+```
+
+Resultado esperado: bypass del login.
+
+---
+
+## 6. Explotación con sqlmap
+
+Ejemplo:
+
+```
+sqlmap -u "http://localhost:5001/login?username=admin&password=admin123" --dump --batch
+```
+
+Comandos adicionales:
+
+Obtener bases de datos:
+
+```
+sqlmap -u "URL_OBJETIVO" --dbs
+```
+
+Obtener tablas:
+
+```
+sqlmap -u "URL_OBJETIVO" -D NOMBRE_DB --tables
+```
+
+Dump completo:
+
+```
+sqlmap -u "URL_OBJETIVO" --dump
+```
+
+Resultado esperado: extracción completa del contenido de la base de datos.
+
+---
+
+# PARTE II — Versión 2.0 Aplicación Segura
+
+## 7. Mejoras Implementadas
+
+La versión segura corrige la vulnerabilidad mediante:
+
+1. Validación y sanitización de parámetros mediante expresión regular.
+2. Uso de consultas parametrizadas con placeholders (`?`).
+
+Ejemplo conceptual seguro:
+
+```
+cursor.execute(
+    "SELECT * FROM users WHERE username = ? AND password = ?",
+    (username, password)
+)
+```
+
+Además, la aplicación escucha en `0.0.0.0` dentro del contenedor para permitir acceso externo.
+
+---
+
+## 8. Cómo levantar la versión segura
+
+Ubicarse en la carpeta correspondiente:
+
+```
+cd lab_secure_app_py
+docker compose up --build
+```
+
+Esto:
+
+1. Construye la imagen de la versión segura.
+2. Levanta un contenedor SQL Server independiente.
+3. Ejecuta el script `init.sql` mediante `db-init`.
+4. Conecta la aplicación segura a la base de datos.
+
+La aplicación estará disponible en:
+
+```
+http://localhost:5002
+```
+
+Nota técnica:
+
+Ambas aplicaciones escuchan internamente en el puerto 5001, pero se exponen en diferentes puertos del host para evitar conflictos:
+
+* Vulnerable → 5001
+* Segura → 5002
+
+---
+
+## 9. Pruebas en la versión segura
+
+### Login válido
+
+```
+http://localhost:5002/login?username=admin&password=admin123
+```
+
+### Intento de SQL Injection
+
+```
+http://localhost:5002/login?username=' OR 1=1--&password=anything
+```
+
+Resultado esperado:
+
+* El login falla.
+* No se produce bypass.
+* sqlmap no logra extraer información.
+
+---
+
+# 10. Reinicio completo del entorno
+
+Si se desea reinicializar completamente cualquiera de las aplicaciones:
+
+Desde la carpeta correspondiente ejecutar:
+
+```
+docker compose down -v
+docker compose up --build
+```
+
+---
+
+# 11. Comparación Técnica
+
+| Característica        | Vulnerable            | Versión 2.0   |
+| --------------------- | --------------------- | ------------- |
+| Construcción SQL      | Concatenación directa | Parametrizada |
+| Validación de entrada | No                    | Sí            |
+| Vulnerable a SQLi     | Sí                    | No            |
+| Explotable con sqlmap | Sí                    | No            |
+
+---
+
+# 12. Conclusiones
+
+Este laboratorio demuestra:
+
+* Cómo una mala práctica en la construcción de consultas SQL compromete completamente una base de datos.
+* Cómo herramientas automatizadas pueden explotar vulnerabilidades reales con facilidad.
+* Cómo la parametrización de consultas elimina una vulnerabilidad crítica sin necesidad de cambios complejos en la arquitectura.
+
+La comparación entre ambas versiones evidencia el impacto directo de aplicar buenas prácticas de desarrollo seguro.
